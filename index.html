@@ -1427,11 +1427,12 @@
                             <h2 class="font-bold text-base text-slate-800">${isSiswa ? 'Jadwal Pelajaran Kelas' : 'Jadwal Mengajar Harian Guru'}</h2>
                             <p class="text-xs text-slate-400">${isSiswa ? 'Informasi jadwal mata pelajaran' : 'Atur alokasi waktu dan ruang mengajar mingguan'}</p>
                         </div>
-                        ${!isSiswa ? `
-                        <button onclick="openModalJadwal()" class="px-3 py-2 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5">
-                            <i class="fa-solid fa-plus"></i> Tambah Jadwal
-                        </button>
-                        ` : ''}
+                    ${!isSiswa ? `
+                    <div class="flex items-center gap-1">
+                        <button onclick="editJadwal('${j.id}')" class="text-slate-400 hover:text-blue-600 p-1" title="Edit"><i class="fa-solid fa-pen-to-square text-xs"></i></button>
+                        <button onclick="deleteJadwal('${j.id}')" class="text-slate-400 hover:text-rose-600 p-1" title="Hapus"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>
+                    ` : ''}
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1466,37 +1467,44 @@
             `;
         }
 
-        function openModalJadwal() {
+        function openModalJadwal(data = null) {
+            currentEditingId = data ? data.id : null;
+            
             const uniqueClasses = [...new Set([...db.siswa.map(s => s.kelas), ...db.mapel.map(m => m.kelas)])].filter(Boolean).sort();
-            let classOptions = uniqueClasses.map(c => `<option value="${c}" ${getActiveGlobalFilter().kelas === c ? 'selected' : ''}>${c}</option>`).join('');
+            
+            // Set default option berdasarkan apakah data diedit atau tambah baru
+            let classOptions = uniqueClasses.map(c => `<option value="${c}" ${(data && data.kelas === c) || (!data && getActiveGlobalFilter().kelas === c) ? 'selected' : ''}>${c}</option>`).join('');
             if (uniqueClasses.length === 0) classOptions = `<option value="">-- Belum ada data kelas --</option>`;
-
-            document.getElementById('modalTitle').innerHTML = `<i class="fa-solid fa-calendar-plus"></i> Tambah Jadwal Mengajar`;
+        
+            document.getElementById('modalTitle').innerHTML = `<i class="fa-solid fa-calendar-${data ? 'check' : 'plus'}"></i> ${data ? 'Edit Jadwal Mengajar' : 'Tambah Jadwal Mengajar'}`;
             document.getElementById('modalBody').innerHTML = `
                 <div id="formJadwal" class="space-y-3">
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Hari</label>
                             <select id="mJadwalHari" class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
-                                <option value="Senin">Senin</option><option value="Selasa">Selasa</option>
-                                <option value="Rabu">Rabu</option><option value="Kamis">Kamis</option>
-                                <option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option>
-                                <option value="Minggu">Minggu</option>
+                                <option value="Senin" ${data && data.hari === 'Senin' ? 'selected' : ''}>Senin</option>
+                                <option value="Selasa" ${data && data.hari === 'Selasa' ? 'selected' : ''}>Selasa</option>
+                                <option value="Rabu" ${data && data.hari === 'Rabu' ? 'selected' : ''}>Rabu</option>
+                                <option value="Kamis" ${data && data.hari === 'Kamis' ? 'selected' : ''}>Kamis</option>
+                                <option value="Jumat" ${data && data.hari === 'Jumat' ? 'selected' : ''}>Jumat</option>
+                                <option value="Sabtu" ${data && data.hari === 'Sabtu' ? 'selected' : ''}>Sabtu</option>
+                                <option value="Minggu" ${data && data.hari === 'Minggu' ? 'selected' : ''}>Minggu</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Jam Ke-</label>
-                            <input type="text" id="mJadwalJamKe" placeholder="1-2" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
+                            <input type="text" id="mJadwalJamKe" value="${data ? data.jamKe : ''}" placeholder="1-2" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Rentang Waktu</label>
-                            <input type="text" id="mJadwalWaktu" placeholder="07:30 - 09:00" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
+                            <input type="text" id="mJadwalWaktu" value="${data ? data.waktu : ''}" placeholder="07:30 - 09:00" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Ruangan</label>
-                            <input type="text" id="mJadwalRuang" placeholder="R. 101" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
+                            <input type="text" id="mJadwalRuang" value="${data ? data.ruang : ''}" placeholder="R. 101" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
                         </div>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
@@ -1508,7 +1516,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-600 mb-1">Mata Pelajaran</label>
-                            <input type="text" id="mJadwalMapel" value="${getActiveGlobalFilter().mapel || 'Matematika'}" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
+                            <input type="text" id="mJadwalMapel" value="${data ? data.mapel : (getActiveGlobalFilter().mapel || 'Matematika')}" required class="w-full px-3 py-2 border rounded-xl text-xs outline-none">
                         </div>
                     </div>
                 </div>
@@ -1523,11 +1531,25 @@
             const ruang = document.getElementById('mJadwalRuang').value;
             const kelas = document.getElementById('mJadwalKelas').value;
             const mapel = document.getElementById('mJadwalMapel').value;
-
-            db.jadwal.push({ id: 'J' + Date.now(), hari, jamKe, waktu, ruang, kelas, mapel });
+        
+            if (!jamKe || !waktu || !ruang || !kelas || !mapel) {
+                return notifyError('Harap lengkapi semua kolom jadwal!');
+            }
+        
+            if (currentEditingId) {
+                // Mode Edit
+                const idx = db.jadwal.findIndex(j => j.id === currentEditingId);
+                if (idx !== -1) {
+                    db.jadwal[idx] = { ...db.jadwal[idx], hari, jamKe, waktu, ruang, kelas, mapel };
+                }
+            } else {
+                // Mode Tambah Baru
+                db.jadwal.push({ id: 'J' + Date.now(), hari, jamKe, waktu, ruang, kelas, mapel });
+            }
+            
             saveDb('jadwal');
             closeModal();
-            notifySuccess('Jadwal mengajar berhasil ditambahkan!');
+            notifySuccess(currentEditingId ? 'Jadwal berhasil diperbarui!' : 'Jadwal mengajar berhasil ditambahkan!');
             renderModuleContent('jadwal');
         }
 
@@ -1536,6 +1558,11 @@
             saveDb('jadwal');
             notifySuccess('Jadwal berhasil dihapus!');
             renderModuleContent('jadwal');
+        }
+
+        function editJadwal(id) {
+            const item = db.jadwal.find(j => j.id === id);
+            if (item) openModalJadwal(item);
         }
 
         function renderMapelView(container) {
@@ -3813,16 +3840,18 @@
         function liveSearchAdminUser(val) {
             currentAdminUserSearch = val.toLowerCase();
             renderModuleContent('admin_users');
-        }
-
-        function verifyUser(id) {
-            const idx = db.users.findIndex(u => u.id === id);
-            if (idx !== -1) {
-                db.users[idx].status = 'Aktif';
-                saveDb('users');
-                notifySuccess('Pengguna berhasil diverifikasi!');
-                renderModuleContent('admin_users');
-            }
+            
+            // Beri jeda sebentar agar DOM selesai di-render, lalu kembalikan fokus
+            setTimeout(() => {
+                const searchInput = document.getElementById('adminUserSearchInput');
+                if (searchInput) {
+                    searchInput.focus(); // Mengembalikan fokus ke kolom pencarian
+                    
+                    // Memindahkan kursor ke karakter paling akhir
+                    const textLength = searchInput.value.length;
+                    searchInput.setSelectionRange(textLength, textLength);
+                }
+            }, 0);
         }
 
         function openModalAdminUser(data = null) {
