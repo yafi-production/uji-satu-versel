@@ -314,6 +314,7 @@
 
     <!-- SCRIPT SECTION -->
     <script>
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbybRL-bQd3ufYhVD3VrN6Iz91DMd4XMi2oz0QPC1gi2vHzDb_8DRBMq6PvQruaxQ0LqqQ/exec';
         // --- DATA INITIALIZATION ---
         const DEFAULT_SETTINGS = {
             sekolah: 'SMA Negeri 1 Edukasi',
@@ -420,31 +421,28 @@
                 loginBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Menghubungkan Database...'; 
                 loginBtn.disabled = true; 
             }
-
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler(function(serverData) {
-                        if(serverData) {
-                            Object.keys(serverData).forEach(key => {
-                                if (serverData[key] && serverData[key].length > 0) {
-                                    if (key === 'pengaturan') db[key] = serverData[key][0] || DEFAULT_SETTINGS;
-                                    else if (key === 'kolomNilai') db[key] = serverData[key][0] || {};
-                                    else db[key] = serverData[key];
-                                }
-                            });
-                        }
-                        finalizeInit();
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error("[GAS Error] Gagal mengambil data Spreadsheet:", error);
-                        loadLocalFallback();
-                        finalizeInit();
-                    })
-                    .ambilSemuaData();
-            } else {
-                loadLocalFallback();
-                finalizeInit();
-            }
+        
+            // Menarik data dari GAS ke Vercel via Fetch API
+            fetch(GAS_URL)
+                .then(response => response.json())
+                .then(res => {
+                    if (res.status === 'success' && res.data) {
+                        const serverData = res.data;
+                        Object.keys(serverData).forEach(key => {
+                            if (serverData[key] && Object.keys(serverData[key]).length > 0) {
+                                if (key === 'pengaturan') db[key] = serverData[key] || DEFAULT_SETTINGS;
+                                else if (key === 'kolomNilai') db[key] = serverData[key] || {};
+                                else db[key] = serverData[key];
+                            }
+                        });
+                    }
+                    finalizeInit();
+                })
+                .catch(error => {
+                    console.error("[Fetch Error] Gagal mengambil data Spreadsheet:", error);
+                    loadLocalFallback();
+                    finalizeInit();
+                });
         }
 
         function finalizeInit() {
@@ -480,24 +478,22 @@
             try {
                 localStorage.setItem('siags_' + key, JSON.stringify(db[key]));
             } catch (e) {
-                console.warn('Gagal menyimpan ke LocalStorage. Mode Sandbox GAS mungkin aktif.');
+                console.warn('Gagal menyimpan ke LocalStorage.');
             }
             
-            if (typeof google !== 'undefined' && google.script) {
-                google.script.run
-                    .withSuccessHandler(function(response) {
-                        console.log(`[GAS Success] Data '${key}' berhasil disinkronisasi.`);
-                    })
-                    .withFailureHandler(function(error) {
-                        console.error(`[GAS Error] Gagal sinkronisasi data '${key}':`, error);
-                    })
-                    .simpanDataKeSheet(key, db[key]);
-            }
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('-translate-x-full');
+            // Mengirim data baru dari Vercel ke GAS Spreadsheet
+            fetch(GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'simpan_data',
+                    key: key,
+                    data: db[key]
+                })
+            })
+            .then(res => res.json())
+            .then(response => console.log(`[GAS Success] Data '${key}' disinkronisasi.`))
+            .catch(error => console.error(`[GAS Error] Gagal sinkronisasi data '${key}':`, error));
         }
 
         function playBeepSound() {
